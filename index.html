@@ -3,21 +3,21 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>WebXR v17.5 • Seed Boxes + L/R LFO • Contrast-biased • Seed Click Fix</title>
+<title>WebXR v17.5 • Seed Boxes + L/R LFO • Contrast-biased • Seed Click Fix 2</title>
 <style>
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:#000;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans KR",sans-serif}
 
   /* Seed 캔버스: seed-on 일 때 화면 최상단에서 클릭 수신 */
-  #seedCanvas{position:fixed;inset:0;cursor:crosshair;touch-action:none;display:block;opacity:0;pointer-events:none;z-index:9999}
+  #seedCanvas{position:fixed;inset:0;cursor:crosshair;touch-action:none;display:block;opacity:0;pointer-events:none;z-index:99999}
   body.seed-on #seedCanvas{opacity:1;pointer-events:auto}
 
   #seedHelp{position:fixed;left:50%;top:18%;transform:translateX(-50%);
-    background:rgba(0,0,0,.6);color:#fff;padding:10px 14px;border-radius:10px;font:13px/1.4 ui-monospace,Consolas,monospace;z-index:10000}
+    background:rgba(0,0,0,.6);color:#fff;padding:10px 14px;border-radius:10px;font:13px/1.4 ui-monospace,Consolas,monospace;z-index:100000}
   body:not(.seed-on) #seedHelp{display:none}
 
   #seedCounter{position:fixed;right:16px;bottom:16px;background:rgba(0,0,0,.6);color:#fff;
-    padding:6px 10px;border-radius:8px;font:12px ui-monospace,Consolas,monospace;z-index:10000}
+    padding:6px 10px;border-radius:8px;font:12px ui-monospace,Consolas,monospace;z-index:100000}
 
   #hud{position:fixed;left:12px;bottom:12px;color:#bfffe5;background:rgba(0,0,0,.45);padding:8px 10px;border-radius:8px;font:12px/1.4 ui-monospace,Consolas,monospace;z-index:800}
 
@@ -127,7 +127,6 @@ function drawPts(){
   sctx.clearRect(0,0,seedCanvas.width,seedCanvas.height);
   sctx.fillStyle='#ffee66';
   for(const p of state.points){ sctx.beginPath(); sctx.arc(p.x,p.y,6,0,Math.PI*2); sctx.fill(); }
-  // 연결선(7개일 때만)
   if(state.points.length===7){
     sctx.strokeStyle='#ffeb3b'; sctx.lineWidth=2;
     let i=0; sctx.beginPath(); sctx.moveTo(state.points[i].x,state.points[i].y);
@@ -143,7 +142,6 @@ function rel(e){
   const src = e.touches? e.touches[0] : e;
   return {x: src.clientX-rect.left, y: src.clientY-rect.top};
 }
-// 컨트롤 패널 위 클릭은 무시(나머지는 모두 입력)
 function isOnControls(e){
   const x=(e.clientX||e.touches?.[0]?.clientX), y=(e.clientY||e.touches?.[0]?.clientY);
   const el=document.elementFromPoint(x,y);
@@ -160,6 +158,7 @@ function tryAddPoint(e){
   state.points.push(p); lastPt=p; lastAddTime=now; drawPts();
 }
 ['pointerdown','mousedown','touchstart'].forEach(ev=>seedCanvas.addEventListener(ev,(e)=>{ e.preventDefault?.(); tryAddPoint(e); },{passive:false}));
+seedCanvas.addEventListener('contextmenu', e=>e.preventDefault()); // 우클릭 메뉴 방지
 
 /* Seed 모드 토글 */
 function setSeedMode(on){
@@ -307,7 +306,10 @@ function mapEyeLayers(){
     xrCam.cameras[1].layers.disableAll?.(); xrCam.cameras[1].layers.set(2);
   }
 }
-renderer.xr.addEventListener('sessionstart', ()=>{ mapEyeLayers(); updateHUD(0); setSeedMode(false); }); // VR 들어가면 Seed 모드 자동 off
+renderer.xr.addEventListener('sessionstart', ()=>{
+  mapEyeLayers(); updateHUD(0);
+  setSeedMode(false); // VR 들어가면 Seed 입력 OFF
+});
 renderer.xr.addEventListener('sessionend',  ()=> updateHUD(0) );
 
 /* ===== 배경 + LFO (고정 눈 freeze) ===== */
@@ -356,10 +358,6 @@ function baseTick(){
 function scheduleNext(){ if(baseTimer) clearTimeout(baseTimer); baseTimer=setTimeout(baseTick, Math.max(3,Number($('holdSec').value))*1000); }
 
 /* ===== Start/Stop ===== */
-function ensureRNG(){ state.seed = (state.points.length===7)? computeSeed() : ((Math.random()*0xffffffff)>>>0);
-  state.rng = mulberry32(state.seed ^ 0x9E3779B9); updateHUD(0); }
-function ptsToPalette(); // (위에 이미 선언됨)
-
 function startCycle(){
   if(state.points.length!==7){ alert('7개 점을 먼저 찍어 주세요. (Seed 모드에서 입력)'); return; }
   ensureRNG(); ptsToPalette();
@@ -386,7 +384,7 @@ $('enterVR').onclick=()=> vrBtn.click();
 
 /* 도움말 */
 $('helpBtn').onclick=()=>{
-  alert('점이 안 찍히면:\n1) 우상단 “Seed 모드 (N)”를 눌러 Seed 모드를 켭니다.\n2) 컨트롤 패널(#controls) 영역 밖을 클릭해 점을 찍으세요.\n3) 7개가 모이면 “시작” 버튼이 활성화됩니다.\n4) VR 모드에서는 Seed 입력이 꺼집니다. (VR 종료 후 입력)');
+  alert('점이 안 찍히면:\n1) 우상단 “Seed 모드 (N)”로 Seed 모드를 켭니다(화면이 어둡게 보이며 십자 커서).\n2) 컨트롤 패널(#controls) 영역 밖을 클릭해 점을 찍으세요.\n3) 7개가 모이면 “시작” 버튼이 활성화됩니다.\n4) VR 모드에서는 Seed 입력이 꺼집니다. (VR 종료 후 입력)\n5) 브라우저 확대/축소가 과도하면 클릭 좌표가 어긋날 수 있습니다(권장 100%).');
 };
 
 /* HUD */
