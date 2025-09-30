@@ -3,23 +3,26 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>WebXR v17.5 • Seed Boxes + L/R LFO • Contrast-biased • Seed Click Fix 2</title>
+<title>WebXR v17.5 • Seed Auto-Start • Contrast Boxes</title>
 <style>
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:#000;font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans KR",sans-serif}
 
-  /* Seed 캔버스: seed-on 일 때 화면 최상단에서 클릭 수신 */
-  #seedCanvas{position:fixed;inset:0;cursor:crosshair;touch-action:none;display:block;opacity:0;pointer-events:none;z-index:99999}
-  body.seed-on #seedCanvas{opacity:1;pointer-events:auto}
+  /* 씨드 캔버스: 씨드 모드에서만 보이고 최상단에서 클릭 수신 */
+  #seedCanvas{position:fixed;inset:0;cursor:crosshair;touch-action:none;display:none;pointer-events:none;z-index:99999}
+  body.seed-on #seedCanvas{display:block;pointer-events:auto}
 
-  #seedHelp{position:fixed;left:50%;top:18%;transform:translateX(-50%);
-    background:rgba(0,0,0,.6);color:#fff;padding:10px 14px;border-radius:10px;font:13px/1.4 ui-monospace,Consolas,monospace;z-index:100000}
+  #seedHelp{position:fixed;left:50%;top:14%;transform:translateX(-50%);
+    background:rgba(0,0,0,.75);color:#fff;padding:10px 14px;border-radius:10px;
+    font:13px/1.4 ui-monospace,Consolas,monospace;z-index:100000}
   body:not(.seed-on) #seedHelp{display:none}
 
-  #seedCounter{position:fixed;right:16px;bottom:16px;background:rgba(0,0,0,.6);color:#fff;
+  #seedCounter{position:fixed;right:16px;top:16px;background:rgba(0,0,0,.70);color:#fff;
     padding:6px 10px;border-radius:8px;font:12px ui-monospace,Consolas,monospace;z-index:100000}
+  body:not(.seed-on) #seedCounter{display:none}
 
-  #hud{position:fixed;left:12px;bottom:12px;color:#bfffe5;background:rgba(0,0,0,.45);padding:8px 10px;border-radius:8px;font:12px/1.4 ui-monospace,Consolas,monospace;z-index:800}
+  #hud{position:fixed;left:12px;bottom:12px;color:#bfffe5;background:rgba(0,0,0,.45);
+       padding:8px 10px;border-radius:8px;font:12px/1.4 ui-monospace,Consolas,monospace;z-index:800}
 
   #menuToggle{position:fixed;left:-9999px}
   #hamburger{position:fixed;left:12px;top:12px;z-index:7001;width:36px;height:36px;border-radius:9px;border:1px solid rgba(255,255,255,.25);
@@ -34,54 +37,52 @@
   .row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;margin:6px 0}
   .row>label{font-size:12px;white-space:nowrap}
   .val{font:12px/1 ui-monospace,Consolas,monospace;color:#c0ffd1;min-width:64px;text-align:right}
-  .rowBtns{display:grid;grid-template-columns:repeat(7,auto);gap:8px;margin:6px 0}
+  .rowBtns{display:grid;grid-template-columns:repeat(6,auto);gap:8px;margin:6px 0}
   button{appearance:none;border:0;border-radius:10px;padding:8px 12px;cursor:pointer;color:#fff;background:#3a86ff}
   button:disabled{opacity:.45;cursor:not-allowed}
-  .stop{background:#c62828}.ghost{background:rgba(255,255,255,.18)}
-  .ok{background:#2a9d8f}.warn{background:#f77f00}
+  .stop{background:#c62828}.ghost{background:rgba(255,255,255,.18)} .ok{background:#2a9d8f}
   .radios{display:flex;gap:16px;align-items:center}
   .radios label{display:flex;gap:6px;align-items:center;font-size:12px}
   small.hint{opacity:.8}
 </style>
 </head>
 <body class="seed-on">
-  <!-- Seed -->
+  <!-- 씨드 -->
   <canvas id="seedCanvas"></canvas>
-  <div id="seedHelp">화면에 <b>7개 점</b>을 찍어 팔레트를 만드세요.<br>(N: Seed 모드 토글)</div>
+  <div id="seedHelp">화면에 <b>7개 점</b>을 찍어 팔레트를 만드세요.<br>(N: Seed 토글)</div>
   <div id="seedCounter">Seed 0/7</div>
 
+  <!-- UI -->
   <input type="checkbox" id="menuToggle" checked>
   <label id="hamburger" for="menuToggle" title="컨트롤 패널 토글(F1/H)">☰</label>
 
   <div id="controls">
-    <h3>WebXR 좌/우 색상 (Per-eye Layers)</h3>
+    <h3>시작/수렴-LFO/밝기·채도 (좌/우)</h3>
     <div class="rowBtns">
       <button id="startBtn" class="ok" disabled>시작</button>
       <button id="stopBtn" class="stop">중지</button>
       <button id="nextBtn" class="ghost">배경 다음 색</button>
       <button id="seedToggleBtn" class="ghost">Seed 모드 (N)</button>
       <button id="resetBtn" class="ghost">Seed 초기화</button>
-      <button id="enterVR" title="VRButton 클릭">Enter VR</button>
-      <button id="helpBtn" class="ghost" title="점이 안 찍히면 눌러보세요">도움말</button>
+      <button id="enterVR">Enter VR</button>
     </div>
     <hr>
 
     <div class="row"><label>배경 자동 전환 주기</label><input id="holdSec" type="range" min="3" max="20" step="1" value="8"><span id="holdSecVal" class="val">8s</span></div>
-    <p style="margin:0 0 8px 8px;"><small class="hint">※ 자동 전환은 <b>LFO 끝점</b>(가중치 0 근처)에서만 실행됩니다. 수렴/복귀 중 고정된 눈의 색은 변하지 않습니다.</small></p>
+    <p style="margin:0 0 8px 8px;"><small class="hint">※ 자동 전환은 <b>LFO 끝점</b>(가중치 0 근처)에서만 실행됩니다.</small></p>
 
-    <h3>수렴/복귀 LFO (어느 눈을 변조할지 선택)</h3>
+    <h3>수렴/복귀 LFO (변조 대상)</h3>
     <div class="row">
       <label>변조 대상</label>
       <div class="radios">
-        <label><input type="radio" name="lfoMode" id="fixLeft"  value="L_FIXED"> 좌안 픽스 · <b>우안 변조</b></label>
-        <label><input type="radio" name="lfoMode" id="fixRight" value="R_FIXED" checked> 우안 픽스 · <b>좌안 변조</b></label>
-      </div>
-      <span class="val"></span>
+        <label><input type="radio" name="lfoMode" id="fixLeft"  value="L_FIXED"> 좌안 픽스 · 우안 변조</label>
+        <label><input type="radio" name="lfoMode" id="fixRight" value="R_FIXED" checked> 우안 픽스 · 좌안 변조</label>
+      </div><span></span>
     </div>
-    <div class="row"><label>수렴 시간(초)</label><input id="convergeSec" type="range" min="2" max="20" step="1" value="8"><span id="convergeSecVal" class="val">8s</span></div>
-    <div class="row"><label>복귀 시간(초)</label><input id="returnSec"   type="range" min="2" max="20" step="1" value="8"><span id="returnSecVal" class="val">8s</span></div>
+    <div class="row"><label>수렴 시간</label><input id="convergeSec" type="range" min="2" max="20" step="1" value="8"><span id="convergeSecVal" class="val">8s</span></div>
+    <div class="row"><label>복귀 시간</label><input id="returnSec"   type="range" min="2" max="20" step="1" value="8"><span id="returnSecVal" class="val">8s</span></div>
 
-    <h3>좌/우 명도 · 채도 · 리프트 (자기값)</h3>
+    <h3>좌/우 명도 · 채도 · 리프트</h3>
     <div class="row"><label>좌 명도</label><input id="gainL" type="range" min="50" max="240" step="1" value="160"><span id="gainLVal" class="val">160%</span></div>
     <div class="row"><label>좌 채도</label><input id="satL"  type="range" min="0"   max="300" step="1" value="170"><span id="satLVal" class="val">1.70×</span></div>
     <div class="row"><label>좌 리프트</label><input id="liftL" type="range" min="-50" max="50"  step="1" value="0"><span id="liftLVal" class="val">+0.00</span></div>
@@ -91,18 +92,15 @@
     <div class="row"><label>우 리프트</label><input id="liftR" type="range" min="-50" max="50"  step="1" value="0"><span id="liftRVal" class="val">+0.00</span></div>
   </div>
 
-  <div id="hud">seed:— | XR:OFF | run:false | LFO:R_FIXED | L:#000000 R:#000000 | boxes:0</div>
+  <div id="hud">seed:— | XR:OFF | run:false | boxes:0</div>
 
 <script type="module">
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 import { VRButton } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/webxr/VRButton.js';
 
 const $=id=>document.getElementById(id), hud=$('hud');
-const seedCanvas=$('seedCanvas'), sctx=seedCanvas.getContext('2d');
-const seedHelp=$('seedHelp'), seedCounter=$('seedCounter');
-const startBtn=$('startBtn');
 
-/* ===== 표시 라벨 바인딩 ===== */
+/* ===== 표시 포맷 바인딩 ===== */
 const fmt={pct:v=>`${v}%`, times:v=>`${(v/100).toFixed(2)}×`, secs:v=>`${v|0}s`, lift:v=> (v>=0?`+${(v/100).toFixed(2)}`:`${(v/100).toFixed(2)}`) };
 const bindVal=(id,fmtf)=>{ const r=$(id), out=$(id+'Val'); const apply=()=>out.textContent=fmtf(Number(r.value)); r.addEventListener('input',apply); apply(); };
 ['gainL','gainR'].forEach(id=>bindVal(id,fmt.pct));
@@ -111,15 +109,20 @@ const bindVal=(id,fmtf)=>{ const r=$(id), out=$(id+'Val'); const apply=()=>out.t
 ['holdSec','convergeSec','returnSec'].forEach(id=>bindVal(id,fmt.secs));
 
 /* ===== 상태 ===== */
+const seedCanvas=$('seedCanvas'), sctx=seedCanvas.getContext('2d');
+const seedHelp=$('seedHelp'), seedCounter=$('seedCounter');
+const startBtn=$('startBtn');
 const state={
   points:[], seed:0, rng:null, running:false,
-  lastBase:{h:200,s:0.8,l:0.6},
-  lastHexL:0x000000, lastHexR:0x000000,
-  palette:[],
-  seedMode:true
+  lastBase:{h:200,s:0.8,l:0.6}, lastHexL:0, lastHexR:0,
+  palette:[], seedMode:true
 };
 
-/* ===== Seed 그리기/입력 ===== */
+function setSeedMode(on){
+  state.seedMode=!!on;
+  document.body.classList.toggle('seed-on', state.seedMode);
+  seedHelp.style.display = state.seedMode ? 'block' : 'none';
+}
 function fit(){ seedCanvas.width=innerWidth; seedCanvas.height=innerHeight; drawPts(); }
 window.addEventListener('resize', fit, {passive:true}); fit();
 
@@ -127,64 +130,39 @@ function drawPts(){
   sctx.clearRect(0,0,seedCanvas.width,seedCanvas.height);
   sctx.fillStyle='#ffee66';
   for(const p of state.points){ sctx.beginPath(); sctx.arc(p.x,p.y,6,0,Math.PI*2); sctx.fill(); }
-  if(state.points.length===7){
-    sctx.strokeStyle='#ffeb3b'; sctx.lineWidth=2;
-    let i=0; sctx.beginPath(); sctx.moveTo(state.points[i].x,state.points[i].y);
-    for(let k=0;k<7;k++){ i=(i+2)%7; sctx.lineTo(state.points[i].x,state.points[i].y); }
-    sctx.closePath(); sctx.stroke();
-  }
-  seedCounter.textContent = `Seed ${state.points.length}/7`;
-  updateStartReady();
-}
-
-function rel(e){
-  const rect=seedCanvas.getBoundingClientRect();
-  const src = e.touches? e.touches[0] : e;
-  return {x: src.clientX-rect.left, y: src.clientY-rect.top};
-}
-function isOnControls(e){
-  const x=(e.clientX||e.touches?.[0]?.clientX), y=(e.clientY||e.touches?.[0]?.clientY);
-  const el=document.elementFromPoint(x,y);
-  return !!(el && el.closest && el.closest('#controls'));
-}
-let lastAddTime=0, lastPt={x:-1e9,y:-1e9};
-function tryAddPoint(e){
-  if(!state.seedMode) return;
-  if(isOnControls(e)) return;
-  const now=performance.now(); if(now-lastAddTime<60) return;
-  const p=rel(e);
-  const dx=p.x-lastPt.x, dy=p.y-lastPt.y; if(dx*dx+dy*dy<25) return;
-  if(state.points.length>=7) return;
-  state.points.push(p); lastPt=p; lastAddTime=now; drawPts();
-}
-['pointerdown','mousedown','touchstart'].forEach(ev=>seedCanvas.addEventListener(ev,(e)=>{ e.preventDefault?.(); tryAddPoint(e); },{passive:false}));
-seedCanvas.addEventListener('contextmenu', e=>e.preventDefault()); // 우클릭 메뉴 방지
-
-/* Seed 모드 토글 */
-function setSeedMode(on){
-  state.seedMode=!!on;
-  document.body.classList.toggle('seed-on', state.seedMode);
-  seedHelp.style.display = state.seedMode ? 'block' : 'none';
-}
-$('seedToggleBtn').onclick=()=> setSeedMode(!state.seedMode);
-document.addEventListener('keydown',(e)=>{
-  if(/INPUT|TEXTAREA/.test(e.target.tagName)) return;
-  if(e.key==='n'||e.key==='N'){ e.preventDefault(); setSeedMode(!state.seedMode); }
-});
-
-/* 시작 버튼 활성화/비활성 */
-function updateStartReady(){
+  seedCounter.textContent=`Seed ${state.points.length}/7`;
   const ready = (state.points.length===7);
   startBtn.disabled = !ready;
-  startBtn.title = ready? '시작' : '7개 점을 먼저 찍어주세요';
+  if(ready){
+    // 자동: Seed OFF + 0.5초 뒤 자동 시작 (실행 보장)
+    if(state.seedMode){ setSeedMode(false); }
+    if(!state.running){
+      clearTimeout(autoStartTid);
+      autoStartTid = setTimeout(()=>{ if(!state.running) startCycle(); }, 500);
+    }
+  }
 }
+function rel(e){
+  const r=seedCanvas.getBoundingClientRect();
+  const src = e.touches? e.touches[0] : e;
+  return {x: src.clientX-r.left, y: src.clientY-r.top};
+}
+let lastTAdd=0,lastPt={x:-1e9,y:-1e9};
+function tryAddPoint(e){
+  if(!state.seedMode) return;
+  const now=performance.now(); if(now-lastTAdd<50) return;
+  const p=rel(e);
+  const dx=p.x-lastPt.x, dy=p.y-lastPt.y; if(dx*dx+dy*dy<16) return;
+  if(state.points.length>=7) return;
+  state.points.push(p); lastPt=p; lastTAdd=now; drawPts();
+}
+['pointerdown','mousedown','touchstart','click'].forEach(ev=>seedCanvas.addEventListener(ev,(e)=>{ e.preventDefault?.(); tryAddPoint(e); }, {passive:false}));
+$('seedToggleBtn').onclick=()=> setSeedMode(!state.seedMode);
 
-/* ===== RNG / 팔레트(HSL 포함) ===== */
+/* ===== 팔레트 / RNG ===== */
 function mulberry32(a){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return ((t^(t>>>14))>>>0)/4294967296;};}
 function computeSeed(){let s=0;for(let i=0;i<state.points.length;i++){const p=state.points[i];s^=(((p.x|0)+(p.y|0))<<(i%24));}return (s>>>0)||0xA5A5A5A5;}
-function ensureRNG(){ state.seed = (state.points.length===7)? computeSeed() : ((Math.random()*0xffffffff)>>>0);
-  state.rng  = mulberry32(state.seed ^ 0x9E3779B9); updateHUD(0); }
-
+function ensureRNG(){ state.seed=(state.points.length===7)?computeSeed():((Math.random()*0xffffffff)>>>0); state.rng=mulberry32(state.seed ^ 0x9E3779B9); updateHUD(); }
 function hslToHex(h,s,l){
   const c=(1-Math.abs(2*l-1))*s,hp=((h%360)+360)%360/60,x=c*(1-Math.abs(hp%2-1)); let r=0,g=0,b=0;
   if(hp<1){r=c;g=x;} else if(hp<2){r=x;g=c;} else if(hp<3){g=c;b=x;} else if(hp<4){g=x;b=c;} else if(hp<5){r=x;b=c;} else {r=c;b=x;}
@@ -193,24 +171,21 @@ function hslToHex(h,s,l){
 }
 function ptsToPalette(){
   if(state.points.length!==7){ state.palette=[]; return; }
-  const cx = seedCanvas.width/2, cy = seedCanvas.height/2;
-  const maxd = Math.hypot(cx, cy);
+  const cx=seedCanvas.width/2, cy=seedCanvas.height/2, maxd=Math.hypot(cx,cy);
   const list=[];
   for(const p of state.points){
-    const ang = Math.atan2(p.y-cy, p.x-cx);
-    const hue = ((ang*180/Math.PI)+360)%360;
-    const rad = Math.hypot(p.x-cx, p.y-cy)/maxd;
-    const s = 0.55 + Math.min(0.35, rad*0.8);
-    const l = 0.55 + (1-rad)*0.25;
-    list.push({h:hue, s, l, hex:hslToHex(hue,s,l)});
+    const ang=Math.atan2(p.y-cy,p.x-cx), hue=((ang*180/Math.PI)+360)%360;
+    const rad=Math.hypot(p.x-cx,p.y-cy)/maxd;
+    const s=0.55+Math.min(0.35,rad*0.8), l=0.55+(1-rad)*0.25;
+    list.push({h:hue,s,l,hex:hslToHex(hue,s,l)});
   }
-  state.palette = list;
+  state.palette=list;
 }
 function hexToCss(hex){ return '#' + hex.toString(16).padStart(6,'0'); }
 
-/* ===== THREE/WebXR (렌더러는 캔버스 아래, seed는 위) ===== */
+/* ===== THREE / WebXR ===== */
 const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});
-renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
 renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.8));
 renderer.setSize(innerWidth,innerHeight);
 renderer.xr.enabled=true; renderer.xr.setReferenceSpaceType('local-floor');
@@ -221,132 +196,91 @@ const scene=new THREE.Scene();
 const cam=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.01,20);
 scene.add(cam);
 
-/* 조명 */
-const hemi = new THREE.HemisphereLight(0xffffff, 0x202040, 1.1);
-const dir1 = new THREE.DirectionalLight(0xffffff, 1.1); dir1.position.set( 1.2, 1.2,  1.6);
-const dir2 = new THREE.DirectionalLight(0xffffff, 0.6); dir2.position.set(-1.0,-0.6, -0.6);
-scene.add(hemi, dir1, dir2);
+/* 라이트 */
+scene.add(new THREE.HemisphereLight(0xffffff,0x202040,1.1));
+const d1=new THREE.DirectionalLight(0xffffff,1.1); d1.position.set(1.2,1.2,1.6); scene.add(d1);
+const d2=new THREE.DirectionalLight(0xffffff,0.6); d2.position.set(-1.0,-0.6,-0.6); scene.add(d2);
 
-/* 카메라 레이어 */
+/* 레이어 */
 cam.layers.enable(1); cam.layers.enable(2);
 
 /* 좌/우 배경 */
 const geoBG=new THREE.PlaneGeometry(4,4,1,1);
 const matL=new THREE.MeshBasicMaterial({color:0x000000, depthTest:false, depthWrite:false});
 const matR=new THREE.MeshBasicMaterial({color:0x000000, depthTest:false, depthWrite:false});
-const quadL=new THREE.Mesh(geoBG, matL);
-const quadR=new THREE.Mesh(geoBG, matR);
+const quadL=new THREE.Mesh(geoBG,matL), quadR=new THREE.Mesh(geoBG,matR);
 quadL.position.z=-0.5; quadR.position.z=-0.5;
 quadL.layers.set(1); quadR.layers.set(2);
-quadL.renderOrder = 0; quadR.renderOrder = 0;
 cam.add(quadL); cam.add(quadR);
 
-/* ===== 박스: 대비 로직 & 크기 축소 유지 ===== */
-const SIZE_SCALE = 0.6;
-const BOX_MIN = 4, BOX_MAX = 6;
+/* 박스: 크기 축소 + 대비 높은 색(보색 75%/유사 25%) */
+const SIZE_SCALE=0.6, BOX_MIN=4, BOX_MAX=6;
 const ACTIVE_COUNT = Math.floor(Math.random()*(BOX_MAX-BOX_MIN+1))+BOX_MIN;
-const Z_START_MIN = -12.0, Z_START_MAX = -6.0;
-const Z_NEAR = -0.35;
-const XY_SPREAD = 0.28;
-const SPEED_MIN = 0.8, SPEED_MAX = 1.6;
-const ROT_MIN = 0.3, ROT_MAX = 0.9;
-
-const boxes=[], boxGroup=new THREE.Group();
-boxGroup.renderOrder=2; boxGroup.layers.enable(1); boxGroup.layers.enable(2); cam.add(boxGroup);
+const Z_START_MIN=-12, Z_START_MAX=-6, Z_NEAR=-0.35, XY_SPREAD=0.28;
+const SPEED_MIN=0.8, SPEED_MAX=1.6, ROT_MIN=0.3, ROT_MAX=0.9;
+const boxes=[], boxGroup=new THREE.Group(); boxGroup.layers.enable(1); boxGroup.layers.enable(2); cam.add(boxGroup);
 
 const COMP_RATIO=0.75, COMP_JITTER=25, SIMILAR_JITTER=22, SIMILAR_DELTA=18;
-function hueWrap(h){ h%=360; if(h<0) h+=360; return h; }
-function hueDist(a,b){ a=hueWrap(a); b=hueWrap(b); const d=Math.abs(a-b); return d>180?360-d:d; }
-function pickFromPaletteOrMake(targetH, sRange=[0.65,0.95], lRange=[0.55,0.78], maxDist=28){
+const hueWrap=h=>{h%=360; if(h<0)h+=360; return h;};
+const hueDist=(a,b)=>{a=hueWrap(a); b=hueWrap(b); const d=Math.abs(a-b); return d>180?360-d:d;};
+function pickFromPaletteOrMake(targetH,sRange=[0.65,0.95],lRange=[0.55,0.78],maxDist=28){
   if(state.palette.length){
-    let best=null, bestD=999;
+    let best=null,bestD=999;
     for(const c of state.palette){ const d=hueDist(targetH,c.h); if(d<bestD){bestD=d;best=c;} }
     if(best && bestD<=maxDist) return new THREE.Color(best.hex);
   }
-  const rng=state.rng?state.rng:Math.random;
-  const h=hueWrap(targetH + (rng()*6-3)), s=sRange[0]+(sRange[1]-sRange[0])*rng(), l=lRange[0]+(lRange[1]-lRange[0])*rng();
+  const rng=state.rng?state.rng:Math.random, h=hueWrap(targetH+(rng()*6-3));
+  const s=sRange[0]+(sRange[1]-sRange[0])*rng(), l=lRange[0]+(lRange[1]-lRange[0])*rng();
   return new THREE.Color(hslToHex(h,s,l));
 }
-function rand(a,b){ const r = state.rng?state.rng():Math.random(); return a + (b-a)*r; }
+const rand=(a,b)=> a + (b-a) * (state.rng?state.rng():Math.random());
 function makeMaterialContrasty(){
-  const baseH = state.lastBase.h;
-  const rng=state.rng?state.rng:Math.random;
-  const useComplement = (rng() < COMP_RATIO);
-  let targetH;
-  if(useComplement){ targetH = hueWrap(baseH + 180 + (rng()*2-1)*COMP_JITTER); }
-  else{ const sign=rng()<0.5?-1:1; targetH = hueWrap(baseH + sign*(SIMILAR_DELTA + (rng()*2-1)*SIMILAR_JITTER)); }
-  const col = pickFromPaletteOrMake(targetH);
-  return new THREE.MeshStandardMaterial({
-    color: col.clone(), metalness:0.0, roughness:0.42,
-    transparent:false, opacity:1.0, emissive: col.clone(), emissiveIntensity:0.40
-  });
+  const baseH=state.lastBase.h, r=state.rng?state.rng():Math.random(); let targetH;
+  if(r < COMP_RATIO) targetH=hueWrap(baseH+180 + (Math.random()*2-1)*COMP_JITTER);
+  else { const s=(Math.random()<0.5?-1:1); targetH=hueWrap(baseH + s*(SIMILAR_DELTA + (Math.random()*2-1)*SIMILAR_JITTER)); }
+  const col=pickFromPaletteOrMake(targetH);
+  return new THREE.MeshStandardMaterial({color:col.clone(),metalness:0,roughness:.42,transparent:false,opacity:1,emissive:col.clone(),emissiveIntensity:.40});
 }
-function recolor(mesh){ const newMat=makeMaterialContrasty(); mesh.material.dispose?.(); mesh.material=newMat; }
+function recolor(m){ const nm=makeMaterialContrasty(); m.material.dispose?.(); m.material=nm; }
 function spawnOne(){
   const sx=SIZE_SCALE*rand(0.28,0.90), sy=SIZE_SCALE*rand(0.22,0.70), sz=SIZE_SCALE*rand(0.45,1.35);
-  const geo=new THREE.BoxGeometry(sx,sy,sz);
-  const mat=makeMaterialContrasty();
-  const m=new THREE.Mesh(geo,mat); m.layers.enable(1); m.layers.enable(2);
-  respawn(m,true); return m;
+  const g=new THREE.BoxGeometry(sx,sy,sz), m=makeMaterialContrasty(); const mesh=new THREE.Mesh(g,m);
+  mesh.layers.enable(1); mesh.layers.enable(2); respawn(mesh,true); return mesh;
 }
-function respawn(m,first=false){
-  m.position.set(rand(-XY_SPREAD,XY_SPREAD), rand(-XY_SPREAD,XY_SPREAD), rand(Z_START_MIN,Z_START_MAX));
-  m.rotation.set(rand(0,Math.PI), rand(0,Math.PI), rand(0,Math.PI));
-  m.userData.vz = rand(SPEED_MIN,SPEED_MAX);
-  m.userData.vr = new THREE.Vector3(rand(ROT_MIN,ROT_MAX), rand(ROT_MIN,ROT_MAX), rand(ROT_MIN,ROT_MAX));
-  recolor(m); if(first) boxGroup.add(m);
+function respawn(mesh,first=false){
+  mesh.position.set(rand(-XY_SPREAD,XY_SPREAD), rand(-XY_SPREAD,XY_SPREAD), rand(Z_START_MIN,Z_START_MAX));
+  mesh.rotation.set(rand(0,Math.PI), rand(0,Math.PI), rand(0,Math.PI));
+  mesh.userData.vz=rand(SPEED_MIN,SPEED_MAX);
+  mesh.userData.vr=new THREE.Vector3(rand(ROT_MIN,ROT_MAX), rand(ROT_MIN,ROT_MAX), rand(ROT_MIN,ROT_MAX));
+  recolor(mesh); if(first) boxGroup.add(mesh);
 }
-(function buildPool(){ for(let i=0;i<ACTIVE_COUNT;i++){ boxes.push(spawnOne()); } })();
+(function buildPool(){ for(let i=0;i<ACTIVE_COUNT;i++) boxes.push(spawnOne()); })();
 
-/* ===== XR 레이어 매핑 ===== */
+/* VR 카메라 레이어 매핑 */
 function mapEyeLayers(){
-  const xrCam = renderer.xr.getCamera(cam);
-  if (xrCam?.cameras?.length>=2){
-    xrCam.cameras[0].layers.disableAll?.(); xrCam.cameras[0].layers.set(1);
-    xrCam.cameras[1].layers.disableAll?.(); xrCam.cameras[1].layers.set(2);
-  }
+  const xrCam=renderer.xr.getCamera(cam);
+  if(xrCam?.cameras?.length>=2){ xrCam.cameras[0].layers.set(1); xrCam.cameras[1].layers.set(2); }
 }
-renderer.xr.addEventListener('sessionstart', ()=>{
-  mapEyeLayers(); updateHUD(0);
-  setSeedMode(false); // VR 들어가면 Seed 입력 OFF
-});
-renderer.xr.addEventListener('sessionend',  ()=> updateHUD(0) );
+renderer.xr.addEventListener('sessionstart', ()=>{ mapEyeLayers(); setSeedMode(false); updateHUD(); });
+renderer.xr.addEventListener('sessionend',  ()=> updateHUD() );
 
-/* ===== 배경 + LFO (고정 눈 freeze) ===== */
-function readLeftBase(){ return { g:Number($('gainL').value), s:Number($('satL').value), l:Number($('liftL').value) }; }
-function readRight(){   return { g:Number($('gainR').value), s:Number($('satR').value), l:Number($('liftR').value) }; }
+/* 배경 L/R + LFO + freeze */
+function readL(){ return { g:Number($('gainL').value), s:Number($('satL').value), l:Number($('liftL').value) }; }
+function readR(){ return { g:Number($('gainR').value), s:Number($('satR').value), l:Number($('liftR').value) }; }
 const lfo={ mode:'R_FIXED', start:performance.now(), conv:Number($('convergeSec').value), ret:Number($('returnSec').value) };
 $('fixLeft').addEventListener('change', ()=>{ if($('fixLeft').checked){ lfo.mode='L_FIXED'; lfo.start=performance.now(); }});
 $('fixRight').addEventListener('change',()=>{ if($('fixRight').checked){ lfo.mode='R_FIXED'; lfo.start=performance.now(); }});
 $('convergeSec').addEventListener('input', ()=>{ lfo.conv=Math.max(2,Number($('convergeSec').value)); lfo.start=performance.now(); });
 $('returnSec').addEventListener('input',  ()=>{ lfo.ret =Math.max(2,Number($('returnSec').value));  lfo.start=performance.now(); });
-function lfoWeight(){
-  const T1=Math.max(2,lfo.conv), T2=Math.max(2,lfo.ret), period=T1+T2;
-  const t=(performance.now()-lfo.start)/1000, ph=t%period;
-  return (ph<=T1)? (ph/T1) : (1 - (ph-T1)/T2);
-}
-function nextBaseHSL(){
-  const rng=state.rng?state.rng:Math.random;
-  return {h:rng()*360, s:0.70 + rng()*0.22, l:0.56 + rng()*0.20};
-}
-function transformHSL(hsl, g, s, lift){
-  const sat=Math.max(0,Math.min(1,hsl.s*(s/100)));
-  let   li =Math.max(0,Math.min(1,hsl.l*(g/100) + (lift/100)));
-  return {h:hsl.h, s:sat, l:li};
-}
+function lfoWeight(){ const T1=Math.max(2,lfo.conv), T2=Math.max(2,lfo.ret), P=T1+T2, t=(performance.now()-lfo.start)/1000, ph=t%P; return (ph<=T1)?(ph/T1):(1-(ph-T1)/T2); }
+function nextBaseHSL(){ const r=state.rng?state.rng():Math.random(); return {h:r*360, s:0.70+r*0.22, l:0.56+r*0.20}; }
+function transform(hsl,g,s,lift){ const S=Math.max(0,Math.min(1,hsl.s*(s/100))); let L=Math.max(0,Math.min(1,hsl.l*(g/100)+(lift/100))); return {h:hsl.h,s:S,l:L}; }
 function applyFromBase(){
-  const base=state.lastBase, L0=readLeftBase(), R0=readRight(), w=lfoWeight();
-  let lH,rH;
-  if(lfo.mode==='L_FIXED'){
-    const Rg=R0.g*(1-w)+L0.g*w, Rs=R0.s*(1-w)+L0.s*w, Rl=R0.l*(1-w)+L0.l*w;
-    lH=transformHSL(base,L0.g,L0.s,L0.l); rH=transformHSL(base,Rg,Rs,Rl);
-  }else{
-    const Lg=L0.g*(1-w)+R0.g*w, Ls=L0.s*(1-w)+R0.s*w, Ll=L0.l*(1-w)+R0.l*w;
-    lH=transformHSL(base,Lg,Ls,Ll); rH=transformHSL(base,R0.g,R0.s,R0.l);
-  }
-  const hexL=hslToHex(lH.h,lH.s,lH.l), hexR=hslToHex(rH.h,rH.s,rH.l);
+  const base=state.lastBase, L0=readL(), R0=readR(), w=lfoWeight(); let LH,RH;
+  if(lfo.mode==='L_FIXED'){ const Rg=R0.g*(1-w)+L0.g*w, Rs=R0.s*(1-w)+L0.s*w, Rl=R0.l*(1-w)+L0.l*w; LH=transform(base,L0.g,L0.s,L0.l); RH=transform(base,Rg,Rs,Rl); }
+  else{ const Lg=L0.g*(1-w)+R0.g*w, Ls=L0.s*(1-w)+R0.s*w, Ll=L0.l*(1-w)+R0.l*w; LH=transform(base,Lg,Ls,Ll); RH=transform(base,R0.g,R0.s,R0.l); }
+  const hexL=hslToHex(LH.h,LH.s,LH.l), hexR=hslToHex(RH.h,RH.s,RH.l);
   state.lastHexL=hexL; state.lastHexR=hexR; matL.color.setHex(hexL); matR.color.setHex(hexR);
-  updateHUD(w);
 }
 let baseTimer=null;
 function lfoAtEndpoint(th=0.02){ return lfoWeight()<=th; }
@@ -357,56 +291,47 @@ function baseTick(){
 }
 function scheduleNext(){ if(baseTimer) clearTimeout(baseTimer); baseTimer=setTimeout(baseTick, Math.max(3,Number($('holdSec').value))*1000); }
 
-/* ===== Start/Stop ===== */
+/* 시작/중지/리셋 */
+let autoStartTid=null;
 function startCycle(){
-  if(state.points.length!==7){ alert('7개 점을 먼저 찍어 주세요. (Seed 모드에서 입력)'); return; }
+  if(state.points.length!==7){ alert('7개 점을 먼저 찍어 주세요.'); return; }
   ensureRNG(); ptsToPalette();
   state.running=true; setSeedMode(false);
   state.lastBase = nextBaseHSL(); lfo.start=performance.now();
-  applyFromBase(); scheduleNext(); updateHUD(0);
+  applyFromBase(); scheduleNext(); updateHUD();
 }
-function stopCycle(){ state.running=false; if(baseTimer) clearTimeout(baseTimer); baseTimer=null; updateHUD(0); }
-
-startBtn.onclick = startCycle;
-$('stopBtn').onclick  = stopCycle;
-$('nextBtn').onclick  = ()=>{ if(!state.running) ensureRNG(); state.lastBase=nextBaseHSL(); applyFromBase(); };
-$('resetBtn').onclick = ()=>{
-  stopCycle(); state.points=[]; state.rng=null; state.palette=[]; drawPts(); setSeedMode(true);
-  boxes.forEach(m=>respawn(m)); // 초기화
-};
+function stopCycle(){ state.running=false; if(baseTimer) clearTimeout(baseTimer); baseTimer=null; updateHUD(); }
+$('startBtn').onclick=startCycle; $('stopBtn').onclick=stopCycle;
+$('nextBtn').onclick=()=>{ if(!state.running) ensureRNG(); state.lastBase=nextBaseHSL(); applyFromBase(); };
+$('resetBtn').onclick=()=>{ stopCycle(); state.points=[]; state.rng=null; state.palette=[]; drawPts(); setSeedMode(true); boxes.forEach(m=>respawn(m)); };
 $('holdSec').addEventListener('input', ()=>{ if(state.running) scheduleNext(); });
 
 /* VR 버튼 */
-const vrBtn = VRButton.createButton(renderer);
+const vrBtn=VRButton.createButton(renderer);
 vrBtn.style.position='fixed'; vrBtn.style.right='16px'; vrBtn.style.top='16px'; vrBtn.style.zIndex='6000';
 document.body.appendChild(vrBtn);
 $('enterVR').onclick=()=> vrBtn.click();
 
-/* 도움말 */
-$('helpBtn').onclick=()=>{
-  alert('점이 안 찍히면:\n1) 우상단 “Seed 모드 (N)”로 Seed 모드를 켭니다(화면이 어둡게 보이며 십자 커서).\n2) 컨트롤 패널(#controls) 영역 밖을 클릭해 점을 찍으세요.\n3) 7개가 모이면 “시작” 버튼이 활성화됩니다.\n4) VR 모드에서는 Seed 입력이 꺼집니다. (VR 종료 후 입력)\n5) 브라우저 확대/축소가 과도하면 클릭 좌표가 어긋날 수 있습니다(권장 100%).');
-};
-
-/* HUD */
-function updateHUD(w=0){
-  hud.textContent=`seed:${state.seed?('0x'+state.seed.toString(16)):'—'} | XR:${renderer.xr.isPresenting?'ON':'OFF'} | run:${state.running} | LFO:${lfo.mode} w=${(w||0).toFixed(2)} | L:${hexToCss(state.lastHexL)} R:${hexToCss(state.lastHexR)} | boxes:${boxes.length}`;
-}
-
-/* 루프 */
+/* HUD + 루프 */
+function updateHUD(){ hud.textContent=`seed:${state.seed?('0x'+state.seed.toString(16)):'—'} | XR:${renderer.xr.isPresenting?'ON':'OFF'} | run:${state.running} | boxes:${boxes.length}`; }
 let lastT=0;
 renderer.setAnimationLoop((t)=>{
   const dt=(t-lastT)/1000; lastT=t||0;
   if(state.running){
     applyFromBase();
     for(const m of boxes){
-      m.rotation.x += m.userData.vr.x*dt;
-      m.rotation.y += m.userData.vr.y*dt;
-      m.rotation.z += m.userData.vr.z*dt;
-      m.position.z += m.userData.vz*dt;
-      if(m.position.z > Z_NEAR) respawn(m);
+      m.rotation.x+=m.userData.vr.x*dt; m.rotation.y+=m.userData.vr.y*dt; m.rotation.z+=m.userData.vr.z*dt;
+      m.position.z+=m.userData.vz*dt; if(m.position.z>Z_NEAR) respawn(m);
     }
   }
   renderer.render(scene,cam);
+});
+
+/* 반응형 + 단축키 */
+window.addEventListener('resize', ()=>{ cam.aspect=innerWidth/innerHeight; cam.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); fit(); }, {passive:true});
+document.addEventListener('keydown',(e)=>{ if(/INPUT|TEXTAREA/.test(e.target.tagName)) return;
+  if(e.key==='F1'||e.key==='h'||e.key==='H'){ e.preventDefault(); $('menuToggle').checked=!$('menuToggle').checked; }
+  if(e.key==='n'||e.key==='N'){ e.preventDefault(); setSeedMode(!state.seedMode); }
 });
 </script>
 </body>
